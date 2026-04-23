@@ -8,8 +8,8 @@ Preferences prefs;
 WebServer server(80);
 DNSServer dns;
 
-const char* ap_ssid = "GMpro";
-const char* ap_pass = "Sangkur87";
+String ap_ssid = "GMpro";
+String ap_pass = "Sangkur87";
 const IPAddress apIP(8, 8, 8, 8);
 
 bool attackOn = false;
@@ -29,8 +29,8 @@ int targetCount = 0;
 void startAP() {
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-  WiFi.softAP(ap_ssid, ap_pass);
-  Serial.println("AP Started: " + String(ap_ssid));
+  WiFi.softAP(ap_ssid.c_str(), ap_pass.c_str());
+  Serial.println("AP Started: " + ap_ssid);
 }
 
 void scanNetworks() {
@@ -380,14 +380,14 @@ void setup() {
   prefs.begin("netherx", false);
   String savedSSID = prefs.getString("ssid", "");
   String savedPASS = prefs.getString("pass", "");
-  if (savedSSID.length() > 0) ap_ssid = savedSSID.c_str();
-  if (savedPASS.length() >= 8) ap_pass = savedPASS.c_str();
+  if (savedSSID.length() > 0) ap_ssid = savedSSID;
+  if (savedPASS.length() >= 8) ap_pass = savedPASS;
   prefs.end();
   
   Serial.println("=================================");
   Serial.println("NETHER-X v1.0 - ESP32 Edition");
-  Serial.println("SSID: " + String(ap_ssid));
-  Serial.println("PASS: " + String(ap_pass));
+  Serial.println("SSID: " + ap_ssid);
+  Serial.println("PASS: " + ap_pass);
   Serial.println("=================================");
   
   startAP();
