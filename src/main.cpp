@@ -17,6 +17,16 @@ bool attackRunning = false;
 unsigned long packetsSent = 0;
 unsigned long lastScan = 0;
 
+void scanNetworks();
+void sendDeauthPackets();
+void handleRoot();
+void handleScan();
+void handleAttack();
+void handleStop();
+void handleStatus();
+void handleApiSsids();
+void handleNotFound();
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
